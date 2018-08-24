@@ -9,7 +9,7 @@ class Config(HardCoded):
     TARGETS_FAIL_THRESHOLD = 50  # <= 50% must fail to restart modem
     MODEM_URL = 'http://admin:admin@192.168.8.1/'
     RESTART_SERVICES = ['granad-rs232', 'openvpn@client']
-    CHECK_ITERVAL = 60  # seconds
+    CHECK_INTERVAL = 60  # seconds
 
 
 class Testing(Config):

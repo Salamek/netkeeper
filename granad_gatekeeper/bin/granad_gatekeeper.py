@@ -214,7 +214,7 @@ def run():
     connected_counter = 0
     connecting_counter = 0
     after_reboot = False
-    sleep_time = options.CHECK_ITERVAL
+    sleep_time = options.CHECK_INTERVAL
 
     while True:
         if is_connection_error(options.TARGETS, options.TARGETS_FAIL_THRESHOLD):
@@ -244,7 +244,7 @@ def run():
                             sleep_time = 60 * 2
                         else:
                             log.info('Signal is good and modem reports connected, maybe error on target side ?')
-                            sleep_time = options.CHECK_ITERVAL
+                            sleep_time = options.CHECK_INTERVAL
                 elif connection_status == ConnectionStatusEnum.CONNECTING:
                     if connecting_counter == 0:
                         log.info('Modem is in connecting state, sleeping for 2 minutes...')
@@ -271,7 +271,7 @@ def run():
         else:
             connected_counter = 0
             connecting_counter = 0
-            sleep_time = options.CHECK_ITERVAL
+            sleep_time = options.CHECK_INTERVAL
             log.info('All is OK, sleeping for {}s'.format(sleep_time))
             if after_reboot:
                 after_reboot = False
