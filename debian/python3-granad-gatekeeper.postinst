@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+  configure)
+    if [ -z "$2" ]; then
+        systemctl daemon-reload
+        systemctl start granad-gatekeeper
+    else
+        systemctl daemon-reload
+        systemctl restart granad-gatekeeper
+    fi
+    ;;
+
+  *)
+    echo "postinst called with unknown argument \`$1'" >&2
+    exit 1
+    ;;
+esac
+
+exit 0
