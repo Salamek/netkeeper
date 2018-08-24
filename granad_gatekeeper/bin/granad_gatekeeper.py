@@ -213,6 +213,7 @@ def run():
     log = logging.getLogger(__name__)
     connected_counter = 0
     connecting_counter = 0
+    after_reboot = False
     sleep_time = options.CHECK_ITERVAL
 
     while True:
@@ -238,6 +239,7 @@ def run():
                             log.warning('BAD signal ({}) detected, restart'.format(lte_signal))
                             connected_counter = 0
                             client.device.reboot()
+                            after_reboot = True
                             log.info('Modem rebooted, sleeping for 2 minutes...')
                             sleep_time = 60 * 2
                         else:
@@ -252,12 +254,14 @@ def run():
                         log.warning('Modem is in connecting state second time, restart')
                         connecting_counter = 0
                         client.device.reboot()
+                        after_reboot = True
                         log.info('Modem rebooted, sleeping for 2 minutes...')
                         sleep_time = 60 * 2
 
                 else:
                     log.warning('Modem is in {}, restarting and sleeping 5 minutes...'.format(connection_status))
                     client.device.reboot()
+                    after_reboot = True
                     log.info('Modem rebooted, sleeping for 2 minutes...')
                     sleep_time = 60 * 5
 
@@ -269,6 +273,9 @@ def run():
             connecting_counter = 0
             sleep_time = options.CHECK_ITERVAL
             log.info('All is OK, sleeping for {}s'.format(sleep_time))
+            if after_reboot:
+                after_reboot = False
+                # @TODO RESTART SERVICES
         time.sleep(sleep_time)
 
 
