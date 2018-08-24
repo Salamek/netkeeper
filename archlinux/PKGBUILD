@@ -1,5 +1,5 @@
 pkgname=granad-gatekeeper
-pkgver=0.1.0
+pkgver=1.0.0
 pkgdesc="BESY GraNad Gatekeeper."
 pkgrel=1
 arch=('any')
