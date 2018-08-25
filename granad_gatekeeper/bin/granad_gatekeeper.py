@@ -25,6 +25,7 @@ Options:
 """
 
 import logging
+import subprocess
 import logging.handlers
 import os
 import time
@@ -35,7 +36,7 @@ import sys
 from functools import wraps
 from docopt import docopt
 import granad_gatekeeper as app_root
-from granad_gatekeeper.ext.multiping import multi_ping
+from granad_gatekeeper.ext.multiping import multi_ping, MultiPingSocketError
 from huawei_lte_api.AuthorizedConnection import AuthorizedConnection
 from huawei_lte_api.Client import Client
 from huawei_lte_api.enums.cradle import ConnectionStatusEnum
@@ -200,10 +201,53 @@ def print_table(table_rows: dict) -> None:
 
 
 def is_connection_error(targets: list, threshold: int) -> bool:
-    esponses, no_responses = multi_ping(targets, timeout=2, retry=3)
+    try:
+        esponses, no_responses = multi_ping(targets, timeout=2, retry=3)
+        error_rate = (len(no_responses) / len(targets)) * 100
+        return error_rate > threshold
+    except MultiPingSocketError as e:
+        """
+        if 'Cannot lookup' in str(e):
+            return True
+        """
+        return True
 
-    error_rate = (len(no_responses) / len(targets)) * 100
-    return error_rate > threshold
+
+def restart_modem_and_wait_for_alive(connection: AuthorizedConnection, log):
+    client = Client(connection)
+    log.warning('Restarting modem!')
+    client.device.reboot()
+    log.warning('Waiting for modem to restart')
+    time.sleep(20)
+    log.warning('Waiting for modem to become live')
+    while True:
+        try:
+            connection.reload()
+            client.monitoring.status()
+            log.warning('Modem booted')
+            return
+        except Exception as e:
+            log.warning('Modem not available: {}'.format(str(e)))
+            time.sleep(20)
+
+
+def call_systemd(service_name: str, argument: str) -> bool:
+    p = subprocess.Popen(['systemctl', argument, '--quiet', service_name])
+    p.wait()
+
+    return p.returncode == 0
+
+
+def is_service_active(service_name: str)-> bool:
+    return call_systemd(service_name, 'is-enabled')
+
+
+def is_service_enabled(service_name: str)-> bool:
+    return call_systemd(service_name, 'is-enabled')
+
+
+def restart_service(service_name: str):
+    return call_systemd(service_name, 'restart')
 
 
 @command
@@ -230,40 +274,37 @@ def run():
                 lte_signal = int(monitoring['SignalIcon'])
                 if connection_status == ConnectionStatusEnum.CONNECTED:
                     if connected_counter == 0:
-                        log.info('Modem thinks its connected, sleeping for 1 minute...')
+                        log.warning('Modem thinks its connected, sleeping for 1 minute...')
                         sleep_time = 60
                         connected_counter += 1
                     else:
-                        log.info('Modem thinks its connected, and it is not a first time... check signal')
+                        log.warning('Modem thinks its connected, and it is not a first time... check signal')
                         if lte_signal < 2:
                             log.warning('BAD signal ({}) detected, restart'.format(lte_signal))
                             connected_counter = 0
-                            client.device.reboot()
+                            restart_modem_and_wait_for_alive(connection, log)
                             after_reboot = True
-                            log.info('Modem rebooted, sleeping for 2 minutes...')
-                            sleep_time = 60 * 2
+                            sleep_time = 1
                         else:
-                            log.info('Signal is good and modem reports connected, maybe error on target side ?')
+                            log.warning('Signal is good and modem reports connected, maybe error on target side ?')
                             sleep_time = options.CHECK_INTERVAL
                 elif connection_status == ConnectionStatusEnum.CONNECTING:
                     if connecting_counter == 0:
-                        log.info('Modem is in connecting state, sleeping for 2 minutes...')
+                        log.warning('Modem is in connecting state, sleeping for 2 minutes...')
                         sleep_time = 60 * 2
                         connecting_counter += 1
                     else:
                         log.warning('Modem is in connecting state second time, restart')
                         connecting_counter = 0
-                        client.device.reboot()
+                        restart_modem_and_wait_for_alive(connection, log)
                         after_reboot = True
-                        log.info('Modem rebooted, sleeping for 2 minutes...')
-                        sleep_time = 60 * 2
+                        sleep_time = 1
 
                 else:
-                    log.warning('Modem is in {}, restarting and sleeping 5 minutes...'.format(connection_status))
-                    client.device.reboot()
+                    log.warning('Modem is in connection state: {}, restarting...'.format(connection_status))
+                    restart_modem_and_wait_for_alive(connection, log)
                     after_reboot = True
-                    log.info('Modem rebooted, sleeping for 2 minutes...')
-                    sleep_time = 60 * 5
+                    sleep_time = 1
 
             except Exception as e:
                 log.warning('Connection to modem failed, sleeping 10 minutes...')
@@ -275,7 +316,11 @@ def run():
             log.info('All is OK, sleeping for {}s'.format(sleep_time))
             if after_reboot:
                 after_reboot = False
-                # @TODO RESTART SERVICES
+                # Restart services when enabled or active
+                for service in options.RESTART_SERVICES:
+                    if is_service_active(service) or is_service_enabled(service):
+                        log.warning('Restarting service {}'.format(service))
+                        restart_service(service)
         time.sleep(sleep_time)
 
 
@@ -285,9 +330,16 @@ def status():
 
     connection = AuthorizedConnection(options.MODEM_URL)
     client = Client(connection)
-    responses, no_responses = multi_ping(options.TARGETS, timeout=2, retry=3)
 
     table_rows = {}
+
+    try:
+        responses, no_responses = multi_ping(options.TARGETS, timeout=2, retry=3)
+    except MultiPingSocketError as e:
+        responses = []
+        no_responses = []
+        table_rows[str(e)] = 'ERROR'
+
     for response in responses:
         table_rows[response] = 'ONLINE'
 
