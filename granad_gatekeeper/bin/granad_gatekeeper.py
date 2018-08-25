@@ -257,6 +257,8 @@ def run():
     log = logging.getLogger(__name__)
     connected_counter = 0
     connecting_counter = 0
+    restart_counter = 0
+    max_restarts = 5
     after_reboot = False
     sleep_time = options.CHECK_INTERVAL
 
@@ -282,9 +284,14 @@ def run():
                         if lte_signal < 2:
                             log.warning('BAD signal ({}) detected, restart'.format(lte_signal))
                             connected_counter = 0
-                            restart_modem_and_wait_for_alive(connection, log)
-                            after_reboot = True
-                            sleep_time = 1
+                            if restart_counter < max_restarts:
+                                restart_modem_and_wait_for_alive(connection, log)
+                                restart_counter += 1
+                                after_reboot = True
+                                sleep_time = 1
+                            else:
+                                sleep_time = 60 * 60
+                                restart_counter = 0
                         else:
                             log.warning('Signal is good and modem reports connected, maybe error on target side ?')
                             sleep_time = options.CHECK_INTERVAL
@@ -296,15 +303,25 @@ def run():
                     else:
                         log.warning('Modem is in connecting state second time, restart')
                         connecting_counter = 0
-                        restart_modem_and_wait_for_alive(connection, log)
-                        after_reboot = True
-                        sleep_time = 1
+                        if restart_counter < max_restarts:
+                            restart_modem_and_wait_for_alive(connection, log)
+                            restart_counter += 1
+                            after_reboot = True
+                            sleep_time = 1
+                        else:
+                            sleep_time = 60 * 60
+                            restart_counter = 0
 
                 else:
                     log.warning('Modem is in connection state: {}, restarting...'.format(connection_status))
-                    restart_modem_and_wait_for_alive(connection, log)
-                    after_reboot = True
-                    sleep_time = 1
+                    if restart_counter < max_restarts:
+                        restart_modem_and_wait_for_alive(connection, log)
+                        restart_counter += 1
+                        after_reboot = True
+                        sleep_time = 1
+                    else:
+                        sleep_time = 60 * 60
+                        restart_counter = 0
 
             except Exception as e:
                 log.warning('Connection to modem failed, sleeping 10 minutes...')
@@ -312,6 +329,7 @@ def run():
         else:
             connected_counter = 0
             connecting_counter = 0
+            restart_counter = 0
             sleep_time = options.CHECK_INTERVAL
             log.info('All is OK, sleeping for {}s'.format(sleep_time))
             if after_reboot:
