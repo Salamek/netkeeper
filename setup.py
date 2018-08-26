@@ -39,7 +39,7 @@ extra_files = []
 
 setup(
     name='granad-gatekeeper',
-    version='1.0.1',
+    version='1.0.2',
     description='BESY GraNad Gatekeeper',
     long_description=open('README.md').read(),
     author='Adam Schubert',
