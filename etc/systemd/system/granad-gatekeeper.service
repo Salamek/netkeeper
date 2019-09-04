@@ -5,7 +5,8 @@ Requires=network.target
 [Service]
 Type=simple
 Restart=on-failure
-RemainAfterExit=yes
+RemainAfterExit=no
+RestartSec=5s
 ExecStart=/usr/bin/granad-gatekeeper run --config_prod --log_dir /var/log
 
 [Install]
