@@ -7,7 +7,7 @@ test:debian:
   stage: test
   script:
     - apt-get update -qy
-    - apt-get install -y python3-dev python3-pip
+    - apt-get install -y python3-dev python3-pip tox
     - pip3 install .
     - tox -e py39
   tags:
@@ -16,7 +16,7 @@ test:debian:
 test:archlinux:
   stage: test
   script:
-    - pacman -Sy python-pip gcc --noconfirm
+    - pacman -Sy python-pip gcc python-tox --noconfirm
     - pip install .
     - tox -e lint,py310
   tags:
