@@ -103,4 +103,4 @@ venv.bak/
 .mypy_cache/
 
 .idea/workspace.xml
-config.yml
+/config.yml

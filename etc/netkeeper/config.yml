@@ -1,0 +1,5 @@
+TARGETS: ['google.com', '8.8.8.8', 'facebook.cz']
+TARGETS_FAIL_THRESHOLD: 50  # <= 50% must fail to restart modem
+MODEM_URL: 'http://admin:admin@192.168.8.1/'
+RESTART_SERVICES: []  # services to restart after connection is establishes eg. ['openvpn@client', 'postfix']
+CHECK_INTERVAL: 60  # seconds
