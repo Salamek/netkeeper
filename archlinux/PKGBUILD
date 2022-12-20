@@ -23,7 +23,6 @@ prepare() {
   cp -R "${srcdir}/../../netkeeper" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../tests" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../setup.py" "${srcdir}/${pkgname}"
-  cp -R "${srcdir}/../../requirements.txt" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../README.md" "${srcdir}/${pkgname}"
 }
 

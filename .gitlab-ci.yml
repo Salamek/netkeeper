@@ -26,7 +26,7 @@ package:debian:
   stage: package
   script:
     - apt-get update -qy
-    - apt-get install -y curl gnupg apt-transport-https
+    - apt-get install -y wget gnupg apt-transport-https
     - wget -O- https://repository.salamek.cz/deb/salamek.gpg | tee /usr/share/keyrings/salamek-archive-keyring.gpg
     - echo "deb     [signed-by=/usr/share/keyrings/salamek-archive-keyring.gpg] https://repository.salamek.cz/deb/pub all main" | tee /etc/apt/sources.list.d/salamek.cz.list
     - apt-get update -qy
