@@ -1,5 +1,5 @@
 
-from granad_gatekeeper.bin.granad_gatekeeper import main
+from netkeeper.bin.netkeeper import main
 
 if __name__ == '__main__':
     main()

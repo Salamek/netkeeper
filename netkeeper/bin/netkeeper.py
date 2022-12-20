@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-"""Main entry-point into the 'GraNad RS232' Flask and Celery application.
+"""Main entry-point into the 'Netkeeper' Flask and Celery application.
 
-This is a BESY GraNad RS232
+This is a Netkeeper
 
-License: PROPRIETARY
-Website: https://gitlab.salamek.cz/sadam/granad-gatekeeper.git
+License: GPL-3
+Website: https://gitlab.salamek.cz/sadam/netkeeper.git
 
 Command details:
     run                 Run the application.
-    detect_tty          Detect tty ports
-    
+    status              Show status of router.
 Usage:
-    granad-gatekeeper run [-l DIR] [--config_prod]
-    granad-gatekeeper (-h | --help)
-    granad-gatekeeper status
+    netkeeper run [-l DIR] [--config_prod]
+    netkeeper (-h | --help)
+    netkeeper status
 
 Options:
     --config_prod               Load the production configuration instead of
@@ -25,22 +24,28 @@ Options:
 """
 
 import logging
-import subprocess
 import logging.handlers
+import subprocess  # nosec B404
 import os
 import time
-import signal
-from importlib import import_module
-from yaml import load
 import sys
+import signal
+import shutil
 from functools import wraps
+from typing import Callable, TypeVar, Optional, List
+from importlib import import_module
+from yaml import load, FullLoader
 from docopt import docopt
-import granad_gatekeeper as app_root
-from granad_gatekeeper.ext.multiping import multi_ping, MultiPingSocketError
 from huawei_lte_api.AuthorizedConnection import AuthorizedConnection
 from huawei_lte_api.Client import Client
 from huawei_lte_api.enums.cradle import ConnectionStatusEnum
+from huawei_lte_api.exceptions import ResponseErrorException
+import netkeeper as app_root
+from netkeeper.ext.multiping import multi_ping, MultiPingSocketError
+from netkeeper.config import Config
 
+
+CT = TypeVar('CT')
 
 OPTIONS = docopt(__doc__)
 APP_ROOT_FOLDER = os.path.abspath(os.path.dirname(app_root.__file__))
@@ -49,12 +54,12 @@ APP_ROOT_FOLDER = os.path.abspath(os.path.dirname(app_root.__file__))
 class CustomFormatter(logging.Formatter):
     LEVEL_MAP = {logging.FATAL: 'F', logging.ERROR: 'E', logging.WARN: 'W', logging.INFO: 'I', logging.DEBUG: 'D'}
 
-    def format(self, record):
-        record.levelletter = self.LEVEL_MAP[record.levelno]
-        return super(CustomFormatter, self).format(record)
+    def format(self, record: logging.LogRecord) -> str:
+        record.levelletter = self.LEVEL_MAP[record.levelno]  # type: ignore
+        return super().format(record)
 
 
-def setup_logging(name=None, level=logging.DEBUG):
+def setup_logging(name: Optional[str] = None, level: int = logging.DEBUG) -> None:
     """Setup Google-Style logging for the entire application.
 
     At first I hated this but I had to use it for work, and now I prefer it. Who knew?
@@ -65,7 +70,6 @@ def setup_logging(name=None, level=logging.DEBUG):
     Positional arguments:
     name -- Append this string to the log file filename.
     """
-
     log_to_disk = False
     if OPTIONS['--log_dir']:
         if not os.path.isdir(OPTIONS['--log_dir']):
@@ -81,7 +85,7 @@ def setup_logging(name=None, level=logging.DEBUG):
     formatter = CustomFormatter(fmt, datefmt)
 
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.ERROR if log_to_disk else logging.DEBUG)
+    console_handler.setLevel(level)
     console_handler.setFormatter(formatter)
 
     root = logging.getLogger()
@@ -89,13 +93,13 @@ def setup_logging(name=None, level=logging.DEBUG):
     root.addHandler(console_handler)
 
     if log_to_disk:
-        file_name = os.path.join(OPTIONS['--log_dir'], 'granad_rs232_{}.log'.format(name))
+        file_name = os.path.join(OPTIONS['--log_dir'], 'token_api_{}.log'.format(name))
         file_handler = logging.handlers.TimedRotatingFileHandler(file_name, when='d', backupCount=7)
         file_handler.setFormatter(formatter)
         root.addHandler(file_handler)
 
 
-def get_config(config_class_string, yaml_files=None):
+def get_config(config_class_string: str, yaml_files: Optional[List[str]] = None) -> Config:
     """Load the Flask config from a class.
     Positional arguments:
     config_class_string -- string representation of a configuration class that will be loaded (e.g.
@@ -107,21 +111,21 @@ def get_config(config_class_string, yaml_files=None):
     config_module, config_class = config_class_string.rsplit('.', 1)
     config_obj = getattr(import_module(config_module), config_class)
 
-    # Expand some options.
-    db_fmt = 'granad_gatekeeper.models.{}'
-    if getattr(config_obj, 'DB_MODELS_IMPORTS', False):
-        config_obj.DB_MODELS_IMPORTS = [db_fmt.format(m) for m in config_obj.DB_MODELS_IMPORTS]
-
     # Load additional configuration settings.
     yaml_files = yaml_files or [f for f in [
-        os.path.join('/', 'etc', 'granad-gatekeeper', 'config.yml'),
+        os.path.join('/', 'etc', 'token-api', 'config.yml'),
         os.path.abspath(os.path.join(APP_ROOT_FOLDER, '..', 'config.yml')),
         os.path.join(APP_ROOT_FOLDER, 'config.yml'),
     ] if os.path.exists(f)]
-    additional_dict = dict()
+
+    if not yaml_files:
+        raise Exception('No configuration file was found!')
+
+    additional_dict = {}
     for y in yaml_files:
-        with open(y) as f:
-            loaded_data = load(f.read())
+        print('Loading config from {}'.format(y))
+        with open(y, encoding='UTF-8') as f:
+            loaded_data = load(f.read(), Loader=FullLoader)
             if isinstance(loaded_data, dict):
                 additional_dict.update(loaded_data)
             else:
@@ -134,7 +138,7 @@ def get_config(config_class_string, yaml_files=None):
     return config_obj
 
 
-def parse_options():
+def parse_options() -> Config:
     """Parses command line options for Flask.
 
     Returns:
@@ -142,15 +146,15 @@ def parse_options():
     """
     # Figure out which class will be imported.
     if OPTIONS['--config_prod']:
-        config_class_string = 'granad_gatekeeper.config.Production'
+        config_class_string = 'netkeeper.config.Production'
     else:
-        config_class_string = 'granad_gatekeeper.config.Config'
+        config_class_string = 'netkeeper.config.Config'
     config_obj = get_config(config_class_string)
 
     return config_obj
 
 
-def command(func):
+def command(name: Optional[str] = None) -> Callable[[Callable[..., CT]], Callable[..., CT]]:
     """Decorator that registers the chosen command/function.
 
     If a function is decorated with @command but that function name is not a valid "command" according to the docstring,
@@ -171,27 +175,40 @@ def command(func):
     Positional arguments:
     func -- the function to decorate
     """
-    @wraps(func)
-    def wrapped():
-        return func()
 
-    # Register chosen function.
-    if func.__name__ not in OPTIONS:
-        raise KeyError('Cannot register {}, not mentioned in docstring/docopt.'.format(func.__name__))
-    if OPTIONS[func.__name__]:
-        command.chosen = func
+    def function_wrap(func: Callable[..., CT]) -> Callable[..., CT]:
 
-    return wrapped
+        @wraps(func)
+        def wrapped() -> CT:
+            return func()
+
+        command_name = name if name else func.__name__
+
+        # Register chosen function.
+        if command_name not in OPTIONS:
+            raise KeyError('Cannot register {}, not mentioned in docstring/docopt.'.format(command_name))
+        if OPTIONS[command_name]:
+            command.chosen = func  # type: ignore
+
+        return wrapped
+
+    return function_wrap
 
 
-def print_table(table_rows: dict) -> None:
-    max_len_key = max([len(i) for i in list(table_rows.keys())])
-    max_len_val = max([len(i) for i in list(table_rows.values())])
+def print_table(table_rows: dict, header: Optional[str] = None) -> None:
+    max_len_key = max(len(i) for i in list(table_rows.keys()))
+    max_len_val = max(len(i) for i in list(table_rows.values()))
 
+    header_format = '| {{:{}s}} |'.format(max_len_key + max_len_val + 3)
     row_format = '| {{:{}s}} | {{:{}s}} |'.format(max_len_key, max_len_val)
     row_format_separator = '| {{:{}s}} + {{:{}s}} |'.format(max_len_key, max_len_val)
 
     print('+{}+'.format('-' * (max_len_key + max_len_val + 5)))
+
+    if header:
+        print(header_format.format(header))
+        print(row_format_separator.format('-' * max_len_key, '-' * max_len_val))
+
     print(row_format.format('Item', 'Value'))
     print(row_format_separator.format('-' * max_len_key, '-' * max_len_val))
     for key in table_rows:
@@ -200,20 +217,16 @@ def print_table(table_rows: dict) -> None:
     print('+{}+'.format('-' * (max_len_key + max_len_val + 5)))
 
 
-def is_connection_error(targets: list, threshold: int) -> bool:
+def is_connection_error(targets: List[str], threshold: int) -> bool:
     try:
-        esponses, no_responses = multi_ping(targets, timeout=2, retry=3)
+        _, no_responses = multi_ping(targets, timeout=2, retry=3)
         error_rate = (len(no_responses) / len(targets)) * 100
         return error_rate > threshold
-    except MultiPingSocketError as e:
-        """
-        if 'Cannot lookup' in str(e):
-            return True
-        """
+    except MultiPingSocketError:
         return True
 
 
-def restart_modem_and_wait_for_alive(connection: AuthorizedConnection, log):
+def restart_modem_and_wait_for_alive(connection: AuthorizedConnection, log: logging.Logger) -> None:
     client = Client(connection)
     log.warning('Restarting modem!')
     client.device.reboot()
@@ -226,32 +239,35 @@ def restart_modem_and_wait_for_alive(connection: AuthorizedConnection, log):
             client.monitoring.status()
             log.warning('Modem booted')
             return
-        except Exception as e:
-            log.warning('Modem not available: {}'.format(str(e)))
+        except ResponseErrorException as e:
+            log.warning('Modem not available', exc_info=e)
             time.sleep(20)
 
 
 def call_systemd(service_name: str, argument: str) -> bool:
-    p = subprocess.Popen(['systemctl', argument, '--quiet', service_name])
-    p.wait()
+    found_systemctl = shutil.which('systemctl')
+    if not found_systemctl:
+        raise ValueError('systemctl binary was not found')
 
-    return p.returncode == 0
+    with subprocess.Popen([found_systemctl, argument, '--quiet', service_name]) as p:  # nosec B603
+        p.wait()
+        return p.returncode == 0
 
 
-def is_service_active(service_name: str)-> bool:
+def is_service_active(service_name: str) -> bool:
     return call_systemd(service_name, 'is-enabled')
 
 
-def is_service_enabled(service_name: str)-> bool:
+def is_service_enabled(service_name: str) -> bool:
     return call_systemd(service_name, 'is-enabled')
 
 
-def restart_service(service_name: str):
+def restart_service(service_name: str) -> bool:
     return call_systemd(service_name, 'restart')
 
 
-@command
-def run():
+@command()
+def run() -> None:  # pylint: disable=too-many-nested-blocks, too-many-statements, too-many-branches
     options = parse_options()
     setup_logging('run', logging.DEBUG if options.DEBUG else logging.WARNING)
     log = logging.getLogger(__name__)
@@ -260,9 +276,8 @@ def run():
     restart_counter = 0
     max_restarts = 5
     after_reboot = False
-    sleep_time = options.CHECK_INTERVAL
 
-    while True:
+    while True:  # pylint: disable=too-many-nested-blocks
         if is_connection_error(options.TARGETS, options.TARGETS_FAIL_THRESHOLD):
             log.warning('Connection error rate reached threshold')
             # Connection seems to be in error state, check router connection
@@ -282,7 +297,7 @@ def run():
                     else:
                         log.warning('Modem thinks its connected, and it is not a first time... check signal')
                         if lte_signal < 2:
-                            log.warning('BAD signal ({}) detected, restart'.format(lte_signal))
+                            log.warning('BAD signal (%s) detected, restart', lte_signal)
                             connected_counter = 0
                             if restart_counter < max_restarts:
                                 restart_modem_and_wait_for_alive(connection, log)
@@ -313,7 +328,7 @@ def run():
                             restart_counter = 0
 
                 else:
-                    log.warning('Modem is in connection state: {}, restarting...'.format(connection_status))
+                    log.warning('Modem is in connection state: %s, restarting...', connection_status)
                     if restart_counter < max_restarts:
                         restart_modem_and_wait_for_alive(connection, log)
                         restart_counter += 1
@@ -323,27 +338,27 @@ def run():
                         sleep_time = 60 * 60
                         restart_counter = 0
 
-            except Exception as e:
-                log.warning('Connection to modem failed, sleeping 10 minutes...')
+            except ResponseErrorException as e:
+                log.warning('Connection to modem failed, sleeping 10 minutes...', exc_info=e)
                 sleep_time = 60 * 10
         else:
             connected_counter = 0
             connecting_counter = 0
             restart_counter = 0
             sleep_time = options.CHECK_INTERVAL
-            log.info('All is OK, sleeping for {}s'.format(sleep_time))
+            log.info('All is OK, sleeping for %ss', sleep_time)
             if after_reboot:
                 after_reboot = False
                 # Restart services when enabled or active
                 for service in options.RESTART_SERVICES:
                     if is_service_active(service) or is_service_enabled(service):
-                        log.warning('Restarting service {}'.format(service))
+                        log.warning('Restarting service %s', service)
                         restart_service(service)
         time.sleep(sleep_time)
 
 
-@command
-def status():
+@command()
+def status() -> None:
     options = parse_options()
 
     connection = AuthorizedConnection(options.MODEM_URL)
@@ -354,18 +369,17 @@ def status():
     try:
         responses, no_responses = multi_ping(options.TARGETS, timeout=2, retry=3)
     except MultiPingSocketError as e:
-        responses = []
+        responses = {}
         no_responses = []
         table_rows[str(e)] = 'ERROR'
 
-    for response in responses:
-        table_rows[response] = 'ONLINE'
+    for address, ping in responses.items():
+        table_rows[address] = 'ONLINE: {:.4f}s'.format(ping)
 
     for no_response in no_responses:
         table_rows[no_response] = '!!!OFF-LINE!!!'
 
-    print('PING INFO')
-    print_table(table_rows)
+    print_table(table_rows, 'Ping Info')
 
     information = client.device.information()
     monitoring = client.monitoring.status()
@@ -387,22 +401,20 @@ def status():
         'Device version': information['HardwareVersion'],
         'Device MAC': information['MacAddress1'],
         'Work mode': information['workmode'],
-        'Internet connection status': connection_status_to_text.get(int(monitoring['ConnectionStatus']), 'Unknown'),
+        'Internet connection status': connection_status_to_text.get(ConnectionStatusEnum(int(monitoring['ConnectionStatus'])), 'Unknown'),
         'Signal': '{}/{}'.format(monitoring['SignalIcon'], monitoring['maxsignal']),
         'WAN IP': monitoring['WanIPAddress'],
         'Primary DNS': monitoring['PrimaryDns'],
         'Secondary DNS': monitoring['SecondaryDns'],
     }
 
-    print('MODEM INFO')
-    print_table(table_rows)
+    print_table(table_rows, 'Modem Info')
 
 
-def main():
+def main() -> None:
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))  # Properly handle Control+C
     getattr(command, 'chosen')()  # Execute the function specified by the user.
 
 
 if __name__ == '__main__':
     main()
-

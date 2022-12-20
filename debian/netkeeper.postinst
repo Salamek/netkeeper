@@ -8,10 +8,10 @@ case "$1" in
   configure)
     if [ -z "$2" ]; then
         systemctl daemon-reload
-        systemctl start granad-gatekeeper
+        systemctl start netkeeper
     else
         systemctl daemon-reload
-        systemctl restart granad-gatekeeper
+        systemctl restart netkeeper
     fi
     ;;
 

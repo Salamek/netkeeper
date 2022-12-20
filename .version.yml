@@ -10,6 +10,6 @@ REGEXPS:
     'PKGBUILD': pkgver\s*=\s*(?P<version>.*)
 
 VERSION_FILES:
-    'fire_jack/__init__.py': 'python'
+    'netkeeper/__init__.py': 'python'
     'setup.py': 'setup.py'
     'archlinux/PKGBUILD': 'PKGBUILD'

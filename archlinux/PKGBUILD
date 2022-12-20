@@ -1,13 +1,13 @@
-pkgname=granad-gatekeeper
+pkgname=netkeeper
 pkgver=1.0.2
-pkgdesc="BESY GraNad Gatekeeper."
+pkgdesc="Netkeeper."
 pkgrel=1
 arch=('any')
-backup=('etc/granad-gatekeeper/config.yml')
-license=('PROPRIETARY')
-url='https://gitlab.salamek.cz/sadam/granad-gatekeeper'
+backup=('etc/netkeeper/config.yml')
+license=('GPL-3')
+url='https://github.com/Salamek/netkeeper'
 
-install=granad_gatekeeper.install
+install=netkeeper.install
 makedepends=('python-setuptools')
 depends=(
     'systemd'
@@ -20,7 +20,7 @@ depends=(
 prepare() {
   mkdir -p "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../etc" "${srcdir}/${pkgname}"
-  cp -R "${srcdir}/../../granad_gatekeeper" "${srcdir}/${pkgname}"
+  cp -R "${srcdir}/../../netkeeper" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../tests" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../setup.py" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../requirements.txt" "${srcdir}/${pkgname}"

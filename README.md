@@ -1,4 +1,4 @@
-# Gatekeeper readme
+# Netkeeper readme
 
 Keeps internet connection open if possible (Restarts network LTE modem)
 
