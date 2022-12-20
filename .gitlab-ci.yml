@@ -76,7 +76,7 @@ repoupdate:
     - ssh www-data@repository 'rm -rf /var/www/repository.salamek.cz/www/arch/pub/x86_64/netkeeper*.pkg.tar.zst'
     - ssh www-data@repository 'rm -rf /var/www/repository.salamek.cz/cache/deb/pub/all/netkeeper*.deb'
     - scp archlinux/netkeeper*.pkg.tar.zst www-data@repository:/var/www/repository.salamek.cz/www/arch/pub/any
-    - scp netkeeper*.deb www-data@repository:/var/www/repository.salamek.cz/cache/deb/pub/all
+    - scp deb_dist/netkeeper*.deb www-data@repository:/var/www/repository.salamek.cz/cache/deb/pub/all
     - ssh www-data@repository '/var/www/repository.salamek.cz/deb-pub-update.sh'
     - ssh www-data@repository '/var/www/repository.salamek.cz/arch-pub-update.sh'
 
