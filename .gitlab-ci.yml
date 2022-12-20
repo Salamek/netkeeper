@@ -32,6 +32,7 @@ package:debian:
     - apt-get update -qy
     - apt-get install -y python3-dev dh-python python3-huawei-lte-api python3-pip python3-stdeb git python3-docopt python3-yaml
     - rm -rf "./deb_dist"
+    - export DEB_BUILD_OPTIONS=nocheck # Disable tests when building debian package
     - python3 setup.py --command-packages=stdeb.command bdist_deb
   tags:
     - debian
