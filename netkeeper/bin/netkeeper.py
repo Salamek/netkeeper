@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Main entry-point into the 'Netkeeper' Flask and Celery application.
+"""Main entry-point into the 'Netkeeper'.
 
 This is a Netkeeper
 
