@@ -58,7 +58,7 @@ package:archlinux:
 
   artifacts:
     paths:
-      - archlinux/netkeeper*.pkg.tar.xz
+      - archlinux/netkeeper*.pkg.tar.zst
     expire_in: 1d
 
 
