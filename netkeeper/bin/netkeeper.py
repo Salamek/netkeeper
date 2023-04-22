@@ -113,7 +113,7 @@ def get_config(config_class_string: str, yaml_files: Optional[List[str]] = None)
 
     # Load additional configuration settings.
     yaml_files = yaml_files or [f for f in [
-        os.path.join('/', 'etc', 'token-api', 'config.yml'),
+        os.path.join('/', 'etc', 'netkeeper', 'config.yml'),
         os.path.abspath(os.path.join(APP_ROOT_FOLDER, '..', 'config.yml')),
         os.path.join(APP_ROOT_FOLDER, 'config.yml'),
     ] if os.path.exists(f)]
