@@ -402,8 +402,8 @@ def status() -> None:
         'Device MAC': information.get('MacAddress1', '???'),
         'Work mode': information.get('workmode', '???'),
         'Internet connection status': connection_status_to_text.get(ConnectionStatusEnum(int(monitoring.get('ConnectionStatus', 906))), 'Unknown'),
-        'Signal': '{}/{}'.format(monitoring.get('SignalIcon'), monitoring.get('maxsignal')),
-        'WAN IP': monitoring.get('WanIPAddress', '???'),
+        'Signal': '{}/{}'.format(monitoring.get('SignalIcon', monitoring.get('SignalIconNr')), monitoring.get('maxsignal')),
+        'WAN IP': monitoring.get('WanIPAddress', information.get('WanIPAddress', '???')),
         'Primary DNS': monitoring.get('PrimaryDns', '???'),
         'Secondary DNS': monitoring.get('SecondaryDns', '???'),
     }
