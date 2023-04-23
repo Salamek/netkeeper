@@ -395,17 +395,17 @@ def status() -> None:
     }
 
     table_rows = {
-        'Device name': information.get('DeviceName'),
-        'Device serial number': information.get('SerialNumber'),
-        'Device IMEI': information.get('Imei'),
-        'Device version': information.get('HardwareVersion'),
-        'Device MAC': information.get('MacAddress1'),
-        'Work mode': information.get('workmode'),
+        'Device name': information.get('DeviceName', '???'),
+        'Device serial number': information.get('SerialNumber', '???'),
+        'Device IMEI': information.get('Imei', '???'),
+        'Device version': information.get('HardwareVersion', '???'),
+        'Device MAC': information.get('MacAddress1', '???'),
+        'Work mode': information.get('workmode', '???'),
         'Internet connection status': connection_status_to_text.get(ConnectionStatusEnum(int(monitoring.get('ConnectionStatus', 906))), 'Unknown'),
         'Signal': '{}/{}'.format(monitoring.get('SignalIcon'), monitoring.get('maxsignal')),
-        'WAN IP': monitoring.get('WanIPAddress'),
-        'Primary DNS': monitoring.get('PrimaryDns'),
-        'Secondary DNS': monitoring.get('SecondaryDns'),
+        'WAN IP': monitoring.get('WanIPAddress', '???'),
+        'Primary DNS': monitoring.get('PrimaryDns', '???'),
+        'Secondary DNS': monitoring.get('SecondaryDns', '???'),
     }
 
     print_table(table_rows, 'Modem Info')
