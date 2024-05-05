@@ -69,8 +69,18 @@ class MultiPingSocketError(socket.gaierror):
 
 
 class MultiPing:
-    _sock: socket.socket
-    _sock6: Optional[socket.socket] = None
+    _sock: Optional[socket.socket]
+    _sock6: Optional[socket.socket]
+    _unprocessed_targets: List[str]
+    _dest_addrs: List[str]
+    _id_to_addr: Dict[int, str]
+    _remaining_ids: Optional[List[int]]
+    _last_used_id: Optional[int]
+    _time_stamp_size: int
+    _receive_has_been_called: bool
+    _ipv6_address_present: bool
+
+
     def __init__(self, dest_addrs: List[str], sock: Optional[socket.socket] = None, ignore_lookup_errors: bool = False):
         """
         Initialize a new multi ping object. This takes the configuration
@@ -95,13 +105,38 @@ class MultiPing:
                                  "65535 addresses at the same time.")
 
         self._ignore_lookup_errors = ignore_lookup_errors
+        self._sock = None
+        self._sock6 = None
+        self._id_to_addr = {}
+        self._remaining_ids = None
+        self._last_used_id = None
+        self._time_stamp_size = struct.calcsize("d")
 
+        self._receive_has_been_called = False
+        self._ipv6_address_present = False
+        self._dest_addrs = []
+        self._unprocessed_targets = []
+
+        # use pid as identifier to filter receive pack from different
+        # process echo
+        self.ident = os.getpid() & 0xffff
+
+        # Open an ICMP socket, if we weren't provided with one already
+        if sock:
+            self._sock = sock
+            self._sock6 = None
+        else:
+            self._open_ipv4_icmp_socket()
+            self._open_ipv6_icmp_socket()
+
+        self._resolve_dns(dest_addrs)
+
+    def _resolve_dns(self, dest_addrs: List[str]) -> None:
         # Get the IP addresses for every specified target: We allow
         # specification of the ping targets by name, so a name lookup needs to
         # be performed. If we get a mixture of IPv4 and IPv6 answers then we
         # will prefer the IPv4 addresses.
-        self._dest_addrs = []
-        self._unprocessed_targets = []
+
         for d in dest_addrs:
             try:
                 addr_info = socket.getaddrinfo(d, None)
@@ -143,26 +178,6 @@ class MultiPing:
                 # We had a problem collecting information for an address. Can't
                 # process those.
                 self._unprocessed_targets.append(d)
-
-        self._id_to_addr: Dict[int, str] = {}
-        self._remaining_ids: Optional[List[int]] = None
-        self._last_used_id: Optional[int] = None
-        self._time_stamp_size = struct.calcsize("d")
-
-        self._receive_has_been_called = False
-        self._ipv6_address_present = False
-
-        # use pid as identifier to filter receive pack from different
-        # process echo
-        self.ident = os.getpid() & 0xffff
-
-        # Open an ICMP socket, if we weren't provided with one already
-        if sock:
-            self._sock = sock
-            self._sock6 = None
-        else:
-            self._open_ipv4_icmp_socket()
-            self._open_ipv6_icmp_socket()
 
     def _open_ipv4_icmp_socket(self) -> None:
         self._sock = self._open_icmp_socket(socket.AF_INET)
@@ -469,7 +484,9 @@ class MultiPing:
         """
             Close sockets descriptors.
         """
-        self._sock.close()
+
+        if self._sock:
+            self._sock.close()
 
         if self._sock6:
             self._sock6.close()
