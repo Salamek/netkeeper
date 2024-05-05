@@ -1,5 +1,5 @@
 pkgname=netkeeper
-pkgver=2.0.6
+pkgver=2.0.7
 pkgdesc="Netkeeper."
 pkgrel=1
 arch=('any')
