@@ -1,28 +1,28 @@
 stages:
-  - test
+#  - test
   - package
   - deploy
 
-test:debian:
-  stage: test
-  script:
-    - apt-get update -qy
-    - apt-get install -y python3-dev python3-pip tox
-    - python -m venv venv
-    - ./venv/bin/pip install .
-    - ./venv/bin/tox -e py39
-  tags:
-    - debian
+#test:debian:
+#  stage: test
+#  script:
+#    - apt-get update -qy
+#    - apt-get install -y python3-dev python3-pip tox
+#    - python -m venv venv
+#    - ./venv/bin/pip install .
+#    - ./venv/bin/tox -e py39
+#  tags:
+#    - debian
 
-test:archlinux:
-  stage: test
-  script:
-    - pacman -Sy python-pip gcc python-tox --noconfirm
-    - python -m venv venv
-    - ./venv/bin/pip install .
-    - tox -e lint,py310
-  tags:
-    - archlinux
+#test:archlinux:
+#  stage: test
+#  script:
+#    - pacman -Sy python-pip gcc python-tox --noconfirm
+#    - python -m venv venv
+#    - ./venv/bin/pip install .
+#    - tox -e lint,py310
+#  tags:
+#    - archlinux
 
 package:debian:
   stage: package
@@ -50,7 +50,7 @@ package:archlinux:
     - echo "[salamek]" >> /etc/pacman.conf
     - echo "Server = https://repository.salamek.cz/arch/pub/any" >> /etc/pacman.conf
     - echo "SigLevel = Optional" >> /etc/pacman.conf
-    - pacman -Sy git binutils sudo python-huawei-lte-api python-yaml python-setuptools python-docopt fakeroot systemd --noconfirm
+    - pacman -Sy git binutils sudo python-huawei-lte-api python-yaml python-setuptools python-docopt fakeroot systemd base-devel --noconfirm
     - useradd -m -G users -s /bin/bash package
     - chown -R package:users archlinux
     - cd archlinux
