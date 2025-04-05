@@ -290,7 +290,7 @@ class MultiPing:
                 # on systems without IPv6 connectivity, sendto will fail with
                 # 'No route to host'
                 pass
-        else:
+        elif self._sock:
             self._sock.sendto(full_pkt, full_dest_addr)
 
     def send(self) -> None:
@@ -348,33 +348,34 @@ class MultiPing:
 
         """
         pkts = []
-        try:
-            self._sock.settimeout(timeout)
-            while True:
-                p = self._sock.recv(64)
-                # Store the packet and the current time
-                pkts.append((bytearray(p), time.time()))
-                # Continue the loop to receive any additional packets that
-                # may have arrived at this point. Changing the socket to
-                # non-blocking (by setting the timeout to 0), so that we'll
-                # only continue the loop until all current packets have been
-                # read.
-                self._sock.settimeout(0)
-        except socket.timeout:
-            # In the first blocking read with timout, we may not receive
-            # anything. This is not an error, it just means no data was
-            # available in the specified time.
-            pass
-        except socket.error as e:
-            # When we read in non-blocking mode, we may get this error with
-            # errno 11 to indicate that no more data is available. That's ok,
-            # just like the timeout.
-            if e.errno == errno.EWOULDBLOCK:
+        if self._sock:
+            try:
+                self._sock.settimeout(timeout)
+                while True:
+                    p = self._sock.recv(64)
+                    # Store the packet and the current time
+                    pkts.append((bytearray(p), time.time()))
+                    # Continue the loop to receive any additional packets that
+                    # may have arrived at this point. Changing the socket to
+                    # non-blocking (by setting the timeout to 0), so that we'll
+                    # only continue the loop until all current packets have been
+                    # read.
+                    self._sock.settimeout(0)
+            except socket.timeout:
+                # In the first blocking read with timout, we may not receive
+                # anything. This is not an error, it just means no data was
+                # available in the specified time.
                 pass
-            else:
-                # We're not expecting any other socket exceptions, so we
-                # re-raise in that case.
-                raise
+            except socket.error as e:
+                # When we read in non-blocking mode, we may get this error with
+                # errno 11 to indicate that no more data is available. That's ok,
+                # just like the timeout.
+                if e.errno == errno.EWOULDBLOCK:
+                    pass
+                else:
+                    # We're not expecting any other socket exceptions, so we
+                    # re-raise in that case.
+                    raise
 
         if self._ipv6_address_present and self._sock6:
             try:
@@ -450,6 +451,8 @@ class MultiPing:
                         pkt_ident = (pkt[_ICMP_IDENT_OFFSET] << 8) + \
                                     pkt[_ICMP_IDENT_OFFSET + 1]
                         payload = pkt[_ICMP_PAYLOAD_OFFSET:]
+                    else:
+                        raise ValueError
 
                     if pkt_ident == self.ident and \
                             pkt_id in self._remaining_ids:
@@ -466,6 +469,9 @@ class MultiPing:
                         self._remaining_ids.remove(pkt_id)
                 except IndexError:
                     # Silently ignore malformed packets
+                    pass
+                except ValueError:
+                    # Silently ignore unknown packets
                     pass
 
             # Calculate how much of the available overall timeout time is left

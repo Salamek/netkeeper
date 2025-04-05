@@ -55,7 +55,7 @@ class CustomFormatter(logging.Formatter):
     LEVEL_MAP = {logging.FATAL: 'F', logging.ERROR: 'E', logging.WARN: 'W', logging.INFO: 'I', logging.DEBUG: 'D'}
 
     def format(self, record: logging.LogRecord) -> str:
-        record.levelletter = self.LEVEL_MAP[record.levelno]  # type: ignore
+        record.levelletter = self.LEVEL_MAP[record.levelno]
         return super().format(record)
 
 
@@ -118,9 +118,6 @@ def get_config(config_class_string: str, yaml_files: Optional[List[str]] = None)
         os.path.join(APP_ROOT_FOLDER, 'config.yml'),
     ] if os.path.exists(f)]
 
-    if not yaml_files:
-        raise Exception('No configuration file was found!')
-
     additional_dict = {}
     for y in yaml_files:
         print('Loading config from {}'.format(y))
@@ -129,7 +126,7 @@ def get_config(config_class_string: str, yaml_files: Optional[List[str]] = None)
             if isinstance(loaded_data, dict):
                 additional_dict.update(loaded_data)
             else:
-                raise Exception('Failed to parse configuration {}'.format(y))
+                raise ValueError('Failed to parse configuration {}'.format(y))
 
     # Merge the rest into the Flask app config.
     for key, value in additional_dict.items():
@@ -267,7 +264,7 @@ def restart_service(service_name: str) -> bool:
 
 
 @command()
-def run() -> None:  # pylint: disable=too-many-nested-blocks, too-many-statements, too-many-branches
+def run() -> None:  # pylint: disable=too-many-nested-blocks, too-many-statements, too-many-branches, too-many-locals
     options = parse_options()
     setup_logging('run', logging.DEBUG if options.DEBUG else logging.WARNING)
     log = logging.getLogger(__name__)
@@ -284,17 +281,17 @@ def run() -> None:  # pylint: disable=too-many-nested-blocks, too-many-statement
             try:
                 connection = AuthorizedConnection(options.MODEM_URL)  # Connect to modem
                 client = Client(connection)
+                information = client.device.information()
                 monitoring = client.monitoring.status()
 
                 # We was able to connect to modem
                 connection_status = int(monitoring['ConnectionStatus'])
                 if information['workmode'] == 'LTE':
-                    signal = int(monitoring['SignalIcon'])
+                    signal_strength = int(monitoring['SignalIcon'])
+                elif information['workmode'] == 'NR-5GC':
+                    signal_strength = int(monitoring['SignalIconNr'])
                 else:
-                    if information['workmode'] == 'NR-5GC':
-                        signal = int(monitoring['SignalIconNr'])
-                    else:
-                        signal = 0
+                    signal_strength = 0
                 if connection_status == ConnectionStatusEnum.CONNECTED:
                     if connected_counter == 0:
                         log.warning('Modem thinks its connected, sleeping for 1 minute...')
@@ -302,8 +299,8 @@ def run() -> None:  # pylint: disable=too-many-nested-blocks, too-many-statement
                         connected_counter += 1
                     else:
                         log.warning('Modem thinks its connected, and it is not a first time... check signal')
-                        if signal < 2:
-                            log.warning('BAD signal (%s) detected, restart', signal)
+                        if signal_strength < 2:
+                            log.warning('BAD signal (%s) detected, restart', signal_strength)
                             connected_counter = 0
                             if restart_counter < max_restarts:
                                 restart_modem_and_wait_for_alive(connection, log)
@@ -390,12 +387,11 @@ def status() -> None:
     information = client.device.information()
     monitoring = client.monitoring.status()
     if information['workmode'] == 'LTE':
-        signal = monitoring.get('SignalIcon')
+        signal_strength = monitoring.get('SignalIcon')
+    elif information['workmode'] == 'NR-5GC':
+        signal_strength = monitoring.get('SignalIconNr')
     else:
-        if information['workmode'] == 'NR-5GC':
-            signal = monitoring.get('SignalIconNr')
-        else:
-            signal = 0
+        signal_strength = 0
 
     connection_status_to_text = {
         ConnectionStatusEnum.CONNECTED: 'Connected',
@@ -415,7 +411,7 @@ def status() -> None:
         'Device MAC': information.get('MacAddress1', '???'),
         'Work mode': information.get('workmode', '???'),
         'Internet connection status': connection_status_to_text.get(ConnectionStatusEnum(int(monitoring.get('ConnectionStatus', 906))), 'Unknown'),
-        'Signal': '{}/{}'.format(signal, monitoring.get('maxsignal')),
+        'Signal': '{}/{}'.format(signal_strength, monitoring.get('maxsignal')),
         'WAN IP': monitoring.get('WanIPAddress', information.get('WanIPAddress', '???')),
         'Primary DNS': monitoring.get('PrimaryDns', '???'),
         'Secondary DNS': monitoring.get('SecondaryDns', '???'),
