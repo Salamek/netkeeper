@@ -30,7 +30,7 @@ classifiers = [s.strip() for s in classes.split('\n') if s]
 
 setup(
     name='netkeeper',
-    version='2.0.8',
+    version='2.0.9',
     description='Netkeeper keeps your huawei router connected',
     long_description=read_readme(),
     long_description_content_type='text/markdown',
