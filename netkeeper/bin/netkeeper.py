@@ -288,7 +288,13 @@ def run() -> None:  # pylint: disable=too-many-nested-blocks, too-many-statement
 
                 # We was able to connect to modem
                 connection_status = int(monitoring['ConnectionStatus'])
-                lte_signal = int(monitoring['SignalIcon'])
+                if information['workmode'] == 'LTE':
+                    signal = int(monitoring['SignalIcon'])
+                else:
+                    if information['workmode'] == 'NR-5GC':
+                        signal = int(monitoring['SignalIconNr'])
+                    else:
+                        signal = 0
                 if connection_status == ConnectionStatusEnum.CONNECTED:
                     if connected_counter == 0:
                         log.warning('Modem thinks its connected, sleeping for 1 minute...')
@@ -296,8 +302,8 @@ def run() -> None:  # pylint: disable=too-many-nested-blocks, too-many-statement
                         connected_counter += 1
                     else:
                         log.warning('Modem thinks its connected, and it is not a first time... check signal')
-                        if lte_signal < 2:
-                            log.warning('BAD signal (%s) detected, restart', lte_signal)
+                        if signal < 2:
+                            log.warning('BAD signal (%s) detected, restart', signal)
                             connected_counter = 0
                             if restart_counter < max_restarts:
                                 restart_modem_and_wait_for_alive(connection, log)
@@ -383,6 +389,13 @@ def status() -> None:
 
     information = client.device.information()
     monitoring = client.monitoring.status()
+    if information['workmode'] == 'LTE':
+        signal = monitoring.get('SignalIcon')
+    else:
+        if information['workmode'] == 'NR-5GC':
+            signal = monitoring.get('SignalIconNr')
+        else:
+            signal = 0
 
     connection_status_to_text = {
         ConnectionStatusEnum.CONNECTED: 'Connected',
@@ -402,7 +415,7 @@ def status() -> None:
         'Device MAC': information.get('MacAddress1', '???'),
         'Work mode': information.get('workmode', '???'),
         'Internet connection status': connection_status_to_text.get(ConnectionStatusEnum(int(monitoring.get('ConnectionStatus', 906))), 'Unknown'),
-        'Signal': '{}/{}'.format(monitoring.get('SignalIcon', monitoring.get('SignalIconNr')), monitoring.get('maxsignal')),
+        'Signal': '{}/{}'.format(signal, monitoring.get('maxsignal')),
         'WAN IP': monitoring.get('WanIPAddress', information.get('WanIPAddress', '???')),
         'Primary DNS': monitoring.get('PrimaryDns', '???'),
         'Secondary DNS': monitoring.get('SecondaryDns', '???'),
