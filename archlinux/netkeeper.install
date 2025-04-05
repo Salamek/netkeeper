@@ -6,8 +6,6 @@ pre_install() {
 ## arg 1:  the new package version
 post_install() {
         # Generate default config
-        systemctl daemon-reload
-        systemctl start netkeeper
 }
 
 ## arg 1:  the new package version

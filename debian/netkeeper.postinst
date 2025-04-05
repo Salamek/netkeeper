@@ -6,10 +6,7 @@ case "$1" in
     ;;
 
   configure)
-    if [ -z "$2" ]; then
-        systemctl daemon-reload
-        systemctl start netkeeper
-    else
+    if [ -n "$2" ]; then
         systemctl daemon-reload
         systemctl restart netkeeper
     fi

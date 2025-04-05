@@ -50,7 +50,7 @@ package:archlinux:
     - echo "[salamek]" >> /etc/pacman.conf
     - echo "Server = https://repository.salamek.cz/arch/pub/any" >> /etc/pacman.conf
     - echo "SigLevel = Optional" >> /etc/pacman.conf
-    - pacman -Sy git binutils sudo python-huawei-lte-api python-yaml python-setuptools python-docopt fakeroot systemd base-devel --noconfirm
+    - pacman -Sy git binutils sudo python-huawei-lte-api python-yaml python-setuptools python-docopt fakeroot base-devel --noconfirm
     - useradd -m -G users -s /bin/bash package
     - chown -R package:users archlinux
     - cd archlinux

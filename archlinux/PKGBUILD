@@ -10,7 +10,6 @@ url='https://github.com/Salamek/netkeeper'
 install=netkeeper.install
 makedepends=('python-setuptools')
 depends=(
-    'systemd'
     'python'
     'python-yaml'
     'python-docopt'
