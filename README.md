@@ -2,6 +2,7 @@
 
 Keeps internet connection open if possible (Restarts network LTE modem), this project uses https://github.com/Salamek/huawei-lte-api, see [supported devices list](https://github.com/Salamek/huawei-lte-api/blob/master/README.md)
 
+![Screenshot](doc/info.jpg)
 
 [![Tox tests](https://github.com/Salamek/netkeeper/actions/workflows/python-test.yml/badge.svg)](https://github.com/Salamek/netkeeper/actions/workflows/python-test.yml)
 
