@@ -36,7 +36,7 @@ from typing import Callable, TypeVar, Optional, List
 from importlib import import_module
 from yaml import load, FullLoader
 from docopt import docopt
-from huawei_lte_api.AuthorizedConnection import AuthorizedConnection
+from huawei_lte_api.Connection import Connection
 from huawei_lte_api.Client import Client
 from huawei_lte_api.enums.cradle import ConnectionStatusEnum
 from huawei_lte_api.exceptions import ResponseErrorException
@@ -223,7 +223,7 @@ def is_connection_error(targets: List[str], threshold: int) -> bool:
         return True
 
 
-def restart_modem_and_wait_for_alive(connection: AuthorizedConnection, log: logging.Logger) -> None:
+def restart_modem_and_wait_for_alive(connection: Connection, log: logging.Logger) -> None:
     client = Client(connection)
     log.warning('Restarting modem!')
     client.device.reboot()
@@ -279,7 +279,7 @@ def run() -> None:  # pylint: disable=too-many-nested-blocks, too-many-statement
             log.warning('Connection error rate reached threshold')
             # Connection seems to be in error state, check router connection
             try:
-                connection = AuthorizedConnection(options.MODEM_URL)  # Connect to modem
+                connection = Connection(options.MODEM_URL)  # Connect to modem
                 client = Client(connection)
                 information = client.device.information()
                 monitoring = client.monitoring.status()
@@ -364,7 +364,7 @@ def run() -> None:  # pylint: disable=too-many-nested-blocks, too-many-statement
 def status() -> None:
     options = parse_options()
 
-    connection = AuthorizedConnection(options.MODEM_URL)
+    connection = Connection(options.MODEM_URL)
     client = Client(connection)
 
     table_rows = {}
