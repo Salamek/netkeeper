@@ -8,12 +8,12 @@ license=('GPL-3')
 url='https://github.com/Salamek/netkeeper'
 
 install=netkeeper.install
-makedepends=('python-setuptools')
+makedepends=('python-setuptools>=77')
 depends=(
-    'python'
+    'python>=3.13'
     'python-yaml'
-    'python-docopt'
-    'python-huawei-lte-api'
+    'python-typer'
+    'python-huawei-lte-api>=2'
 )
 replaces=('granad-gatekeeper')
 
@@ -23,6 +23,8 @@ prepare() {
   cp -R "${srcdir}/../../lib" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../netkeeper" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../tests" "${srcdir}/${pkgname}"
+  cp -R "${srcdir}/../../pyproject.toml" "${srcdir}/${pkgname}"
+  cp -R "${srcdir}/../../LICENSE" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../setup.py" "${srcdir}/${pkgname}"
   cp -R "${srcdir}/../../README.md" "${srcdir}/${pkgname}"
 }

@@ -1,4 +1,7 @@
-include requirements.txt
 include README.md
+include code-check.sh
+include stdeb.cfg
 recursive-include etc *
-recursive-include tests *
+recursive-include lib *
+recursive-include tests *.py
+global-exclude *.py[cod]

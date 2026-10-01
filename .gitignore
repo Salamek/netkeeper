@@ -104,3 +104,4 @@ venv.bak/
 
 .idea/workspace.xml
 /config.yml
+.ruff_cache/

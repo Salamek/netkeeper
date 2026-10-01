@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netkeeper"
+dynamic = ["version"]
+description = "Netkeeper keeps your huawei router connected"
+readme = "README.md"
+requires-python = ">=3.13"
+license = "GPL-3.0-only"
+authors = [{name = "Adam Schubert", email = "adam.schubert@sg1-game.net"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = ["pyyaml>=6,<7", "typer>=0.12,<1.0", "huawei-lte-api>=2,<3"]
+
+[project.optional-dependencies]
+dev = ["ruff", "mypy", "types-PyYAML", "types-requests", "types-setuptools", "build"]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/Salamek/netkeeper"
+
+[project.scripts]
+netkeeper = "netkeeper.__main__:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "netkeeper.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["netkeeper*"]
+
+[tool.setuptools.package-data]
+netkeeper = ["py.typed"]
+
+[tool.ruff]
+line-length = 150
+target-version = "py313"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["D", "CPY001"]  # Docstrings and copyright notices are optional.
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
+
+[tool.ruff.lint.pylint]
+allow-magic-value-types = ["int", "str"]
+max-args = 8
+max-branches = 16
+max-returns = 10
+
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "PLR2004"]
+"netkeeper/bin/netkeeper.py" = ["T201"]
+
+[tool.mypy]
+files = ["netkeeper", "tests", "manage.py", "setup.py"]
+strict = true
+show_error_codes = true
+exclude = "(^|/)(\\.venv|build|dist|\\.tox|archlinux/src)/"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

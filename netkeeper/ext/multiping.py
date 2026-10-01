@@ -15,21 +15,23 @@ limitations under the License.
 
 """
 
-__version__ = "1.1.0"
+__version__ = '1.1.0'
 
+import errno
 import os
 import socket
 import struct
 import time
-import errno
-from typing import List, Optional, Tuple, Dict, Union
+from contextlib import suppress
 
 # Packet header operations in Python are most easiest done by using the
 # struct package and packing values according to specific formats. For
 # the ICMP header the pack format string is this. Note the '!' in the format
 # string: This means that all packing/unpacking correctly takes network byte
 # order into account.
-_ICMP_HDR_PACK_FORMAT = "!BBHHH"
+_MIN_TIMEOUT = 0.1
+
+_ICMP_HDR_PACK_FORMAT = '!BBHHH'
 
 # Some offsets we use when extracting data from the header
 _ICMP_HDR_OFFSET = 20
@@ -46,9 +48,7 @@ _ICMPV6_PAYLOAD_OFFSET = _ICMPV6_HDR_OFFSET + 8
 _ICMPV6_ECHO_REQUEST = 128
 _ICMPV6_ECHO_REPLY = 129
 
-_IPPROTO_ICMPV6 = (socket.IPPROTO_ICMPV6
-                   if hasattr(socket, 'IPPROTO_ICMPV6')
-                   else 58)
+_IPPROTO_ICMPV6 = socket.IPPROTO_ICMPV6 if hasattr(socket, 'IPPROTO_ICMPV6') else 58
 
 
 class MultiPingError(Exception):
@@ -69,19 +69,18 @@ class MultiPingSocketError(socket.gaierror):
 
 
 class MultiPing:
-    _sock: Optional[socket.socket]
-    _sock6: Optional[socket.socket]
-    _unprocessed_targets: List[str]
-    _dest_addrs: List[str]
-    _id_to_addr: Dict[int, str]
-    _remaining_ids: Optional[List[int]]
-    _last_used_id: Optional[int]
+    _sock: socket.socket | None
+    _sock6: socket.socket | None
+    _unprocessed_targets: list[str]
+    _dest_addrs: list[str]
+    _id_to_addr: dict[int, str]
+    _remaining_ids: list[int] | None
+    _last_used_id: int | None
     _time_stamp_size: int
     _receive_has_been_called: bool
     _ipv6_address_present: bool
 
-
-    def __init__(self, dest_addrs: List[str], sock: Optional[socket.socket] = None, ignore_lookup_errors: bool = False):
+    def __init__(self, dest_addrs: list[str], sock: socket.socket | None = None, *, ignore_lookup_errors: bool = False) -> None:
         """
         Initialize a new multi ping object. This takes the configuration
         consisting of the list of destination addresses and an optional socket
@@ -96,21 +95,21 @@ class MultiPing:
         for which we have not received results, yet.
 
         """
+        self._sock = None
+        self._sock6 = None
         # Perform some sanity checking
         if len(dest_addrs) > 65535:
             # The ID field is only 16 bits wide, so we can't possibly send out
             # more than 2^16 requests at the same time without rolling over
             # onto our own IDs.
-            raise MultiPingError("Cannot send ICMP echo request to more than "
-                                 "65535 addresses at the same time.")
+            message = 'Cannot send ICMP echo request to more than 65535 addresses at the same time.'
+            raise MultiPingError(message)
 
         self._ignore_lookup_errors = ignore_lookup_errors
-        self._sock = None
-        self._sock6 = None
         self._id_to_addr = {}
         self._remaining_ids = None
         self._last_used_id = None
-        self._time_stamp_size = struct.calcsize("d")
+        self._time_stamp_size = struct.calcsize('d')
 
         self._receive_has_been_called = False
         self._ipv6_address_present = False
@@ -119,7 +118,7 @@ class MultiPing:
 
         # use pid as identifier to filter receive pack from different
         # process echo
-        self.ident = os.getpid() & 0xffff
+        self.ident = os.getpid() & 0xFFFF
 
         # Open an ICMP socket, if we weren't provided with one already
         if sock:
@@ -131,7 +130,7 @@ class MultiPing:
 
         self._resolve_dns(dest_addrs)
 
-    def _resolve_dns(self, dest_addrs: List[str]) -> None:
+    def _resolve_dns(self, dest_addrs: list[str]) -> None:
         # Get the IP addresses for every specified target: We allow
         # specification of the ping targets by name, so a name lookup needs to
         # be performed. If we get a mixture of IPv4 and IPv6 answers then we
@@ -149,11 +148,11 @@ class MultiPing:
                 for res in addr_info:
                     if res[0] == socket.AF_INET:
                         # We found the first IPv4 address! Use this result
-                        addr = res[4][0]
+                        addr = str(res[4][0])
                         break
                     if not addr:
                         # Otherwise, we record the first of the IPv6 addresses
-                        addr = res[4][0]
+                        addr = str(res[4][0])
                     # Continue the loop, since we maybe only have had IPv6
                     # addresses so far and some IPv4 ones are still to come.
 
@@ -170,7 +169,8 @@ class MultiPing:
                     # error that we received. This exception class has
                     # socket.gaierror as base class, so try-except blocks that
                     # are looking for socket.gaierror will still work.
-                    raise MultiPingSocketError(f"Cannot lookup '{d}'") from exc
+                    message = f"Cannot lookup '{d}'"
+                    raise MultiPingSocketError(message) from exc
 
             if addr:
                 self._dest_addrs.append(addr)
@@ -183,14 +183,15 @@ class MultiPing:
         self._sock = self._open_icmp_socket(socket.AF_INET)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 131072)
 
-    def _open_ipv6_icmp_socket(self, ignore_failures: bool =True) -> None:
+    def _open_ipv6_icmp_socket(self, *, ignore_failures: bool = True) -> None:
         try:
             self._sock6 = self._open_icmp_socket(socket.AF_INET6)
             self._sock6.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 131072)
-        except socket.error as exc:
+        except OSError as exc:
             if ignore_failures:
                 return
-            raise MultiPingSocketError("IPv6 address family not supported") from exc
+            message = 'IPv6 address family not supported'
+            raise MultiPingSocketError(message) from exc
 
     @staticmethod
     def _open_icmp_socket(family: int) -> socket.socket:
@@ -200,14 +201,14 @@ class MultiPing:
 
         """
         try:
-            proto = socket.IPPROTO_ICMP if family == socket.AF_INET \
-                else _IPPROTO_ICMPV6
+            proto = socket.IPPROTO_ICMP if family == socket.AF_INET else _IPPROTO_ICMPV6
 
             return socket.socket(family, socket.SOCK_RAW, proto)
 
-        except socket.error as e:
+        except OSError as e:
             if e.errno == 1:
-                raise MultiPingError("Root privileges required for sending ICMP") from e
+                message = 'Root privileges required for sending ICMP'
+                raise MultiPingError(message) from e
             # Re-raise any other error
             raise
 
@@ -224,15 +225,13 @@ class MultiPing:
 
         def carry_around_add(a: int, b: int) -> int:
             c = a + b
-            return (c & 0xffff) + (c >> 16)
+            return (c & 0xFFFF) + (c >> 16)
 
         s = 0
         for i in range(0, len(msg), 2):
             w = (msg[i] << 8) + msg[i + 1]
             s = carry_around_add(s, w)
-        s = ~s & 0xffff
-
-        return s
+        return ~s & 0xFFFF
 
     def _send_ping(self, dest_addr: str, payload: bytes) -> None:
         """
@@ -258,10 +257,7 @@ class MultiPing:
         # - checksum  = 0 (unsigned short)
         # - packet id     (unsigned short)
         # - sequence  = 0 (unsigned short)  This doesn't have to be 0.
-        dummy_header = bytearray(
-            struct.pack(_ICMP_HDR_PACK_FORMAT,
-                        icmp_echo_request, 0, 0,
-                        pkt_id, self.ident))
+        dummy_header = bytearray(struct.pack(_ICMP_HDR_PACK_FORMAT, icmp_echo_request, 0, 0, pkt_id, self.ident))
 
         # Calculate the checksum over the combined dummy header and payload
         checksum = self._checksum(dummy_header + payload)
@@ -269,10 +265,7 @@ class MultiPing:
         # We can now create the real header, which contains the correct
         # checksum. Need to make sure to convert checksum to network byte
         # order.
-        real_header = bytearray(
-            struct.pack(_ICMP_HDR_PACK_FORMAT,
-                        icmp_echo_request, 0, checksum,
-                        pkt_id, self.ident))
+        real_header = bytearray(struct.pack(_ICMP_HDR_PACK_FORMAT, icmp_echo_request, 0, checksum, pkt_id, self.ident))
 
         # Full packet consists of header plus payload
         full_pkt = real_header + payload
@@ -284,12 +277,9 @@ class MultiPing:
 
         if is_ipv6 and self._sock6:
             socket.inet_pton(socket.AF_INET6, dest_addr)
-            try:
+            # Systems without IPv6 connectivity may report 'No route to host'.
+            with suppress(OSError):
                 self._sock6.sendto(full_pkt, full_dest_addr)
-            except OSError:
-                # on systems without IPv6 connectivity, sendto will fail with
-                # 'No route to host'
-                pass
         elif self._sock:
             self._sock.sendto(full_pkt, full_dest_addr)
 
@@ -315,21 +305,21 @@ class MultiPing:
             # we never sent anything before then we create a first ID
             # 'randomly' from the current time. ID is only a 16 bit field, so
             # need to trim it down.
-            self._last_used_id = int(time.time()) & 0xffff
+            self._last_used_id = int(time.time()) & 0xFFFF
 
         # Send ICMPecho to all addresses...
         for addr in all_addrs:
             # Make a unique ID, wrapping around at 65535.
-            self._last_used_id = (self._last_used_id + 1) & 0xffff
+            self._last_used_id = (self._last_used_id + 1) & 0xFFFF
             # Remember the address for each ID so we can produce meaningful
             # result lists later on.
             self._id_to_addr[self._last_used_id] = addr
             # Send an ICMPecho request packet. We specify a payload consisting
             # of the current time stamp. This is returned to us in the
             # response and allows us to calculate the 'ping time'.
-            self._send_ping(addr, payload=struct.pack("d", time.time()))
+            self._send_ping(addr, payload=struct.pack('d', time.time()))
 
-    def _read_all_from_socket(self, timeout: float) -> List[Tuple[bytearray, float]]:
+    def _read_all_from_socket(self, timeout: float) -> list[tuple[bytearray, float]]:
         """
         Read all packets we currently can on the socket.
 
@@ -361,12 +351,12 @@ class MultiPing:
                     # only continue the loop until all current packets have been
                     # read.
                     self._sock.settimeout(0)
-            except socket.timeout:
+            except TimeoutError:
                 # In the first blocking read with timout, we may not receive
                 # anything. This is not an error, it just means no data was
                 # available in the specified time.
                 pass
-            except socket.error as e:
+            except OSError as e:
                 # When we read in non-blocking mode, we may get this error with
                 # errno 11 to indicate that no more data is available. That's ok,
                 # just like the timeout.
@@ -384,9 +374,9 @@ class MultiPing:
                     p = self._sock6.recv(128)
                     pkts.append((bytearray(p), time.time()))
                     self._sock6.settimeout(0)
-            except socket.timeout:
+            except TimeoutError:
                 pass
-            except socket.error as e:
+            except OSError as e:
                 if e.errno == errno.EWOULDBLOCK:
                     pass
                 else:
@@ -394,7 +384,7 @@ class MultiPing:
 
         return pkts
 
-    def receive(self, timeout: float) -> Tuple[Dict[str, int], List[str]]:
+    def receive(self, timeout: float) -> tuple[dict[str, float], list[str]]:
         """
         Receive ping responses from the socket. Attempts to read responses for
         all stored IDs (as generated by send()).
@@ -408,7 +398,8 @@ class MultiPing:
 
         """
         if not self._id_to_addr:
-            raise MultiPingError("No requests have been sent, yet.")
+            message = 'No requests have been sent, yet.'
+            raise MultiPingError(message)
 
         self._receive_has_been_called = True
 
@@ -422,7 +413,7 @@ class MultiPing:
             self._remaining_ids = list(self._id_to_addr.keys())
 
         remaining_time = timeout
-        results = {}
+        results: dict[str, float] = {}
 
         # Keep looping until we either have responses for all request IDs, or
         # no more time is left.
@@ -437,37 +428,28 @@ class MultiPing:
                     pkt_id = None
                     pkt_ident = None
                     if pkt[_ICMPV6_HDR_OFFSET] == _ICMPV6_ECHO_REPLY:
-
-                        pkt_id = (pkt[_ICMPV6_ID_OFFSET] << 8) + \
-                                 pkt[_ICMPV6_ID_OFFSET + 1]
-                        pkt_ident = (pkt[_ICMPV6_IDENT_OFFSET] << 8) + \
-                                    pkt[_ICMPV6_IDENT_OFFSET + 1]
+                        pkt_id = (pkt[_ICMPV6_ID_OFFSET] << 8) + pkt[_ICMPV6_ID_OFFSET + 1]
+                        pkt_ident = (pkt[_ICMPV6_IDENT_OFFSET] << 8) + pkt[_ICMPV6_IDENT_OFFSET + 1]
                         payload = pkt[_ICMPV6_PAYLOAD_OFFSET:]
 
                     elif pkt[_ICMP_HDR_OFFSET] == _ICMP_ECHO_REPLY:
-
-                        pkt_id = (pkt[_ICMP_ID_OFFSET] << 8) + \
-                                 pkt[_ICMP_ID_OFFSET + 1]
-                        pkt_ident = (pkt[_ICMP_IDENT_OFFSET] << 8) + \
-                                    pkt[_ICMP_IDENT_OFFSET + 1]
+                        pkt_id = (pkt[_ICMP_ID_OFFSET] << 8) + pkt[_ICMP_ID_OFFSET + 1]
+                        pkt_ident = (pkt[_ICMP_IDENT_OFFSET] << 8) + pkt[_ICMP_IDENT_OFFSET + 1]
                         payload = pkt[_ICMP_PAYLOAD_OFFSET:]
                     else:
-                        raise ValueError
+                        continue
 
-                    if pkt_ident == self.ident and \
-                            pkt_id in self._remaining_ids:
+                    if pkt_ident == self.ident and pkt_id in self._remaining_ids:
                         # The sending timestamp was encoded in the echo request
                         # body and is now returned to us in the response. Note
                         # that network byte order doesn't matter here, since we
                         # get exactly the order of bytes back that we
                         # originally sent from this host.
-                        req_sent_time = struct.unpack(
-                            "d", payload[:self._time_stamp_size])[0]
-                        results[self._id_to_addr[pkt_id]] = \
-                            resp_receive_time - req_sent_time
+                        req_sent_time = struct.unpack('d', payload[: self._time_stamp_size])[0]
+                        results[self._id_to_addr[pkt_id]] = resp_receive_time - req_sent_time
 
                         self._remaining_ids.remove(pkt_id)
-                except IndexError:
+                except (IndexError, struct.error):
                     # Silently ignore malformed packets
                     pass
                 except ValueError:
@@ -488,7 +470,7 @@ class MultiPing:
 
     def __del__(self) -> None:
         """
-            Close sockets descriptors.
+        Close sockets descriptors.
         """
 
         if self._sock:
@@ -498,7 +480,7 @@ class MultiPing:
             self._sock6.close()
 
 
-def multi_ping(dest_addrs: List[str], timeout: Union[int, float], retry: int = 0, ignore_lookup_errors: bool = False) -> Tuple[Dict[str, int], List[str]]:
+def multi_ping(dest_addrs: list[str], timeout: float, retry: int = 0, *, ignore_lookup_errors: bool = False) -> tuple[dict[str, float], list[str]]:
     """
     Combine send and receive measurement into single function.
 
@@ -520,16 +502,18 @@ def multi_ping(dest_addrs: List[str], timeout: Union[int, float], retry: int = 0
     retry = max(int(retry), 0)
     if isinstance(timeout, int):
         timeout = float(timeout)
-    if timeout < 0.1:
-        raise MultiPingError("Timeout < 0.1 seconds not allowed")
+    if timeout < _MIN_TIMEOUT:
+        message = 'Timeout < 0.1 seconds not allowed'
+        raise MultiPingError(message)
 
     retry_timeout = timeout / (retry + 1)
-    if retry_timeout < 0.1:
-        raise MultiPingError("Time between ping retries < 0.1 seconds")
+    if retry_timeout < _MIN_TIMEOUT:
+        message = 'Time between ping retries < 0.1 seconds'
+        raise MultiPingError(message)
 
     mp = MultiPing(dest_addrs, ignore_lookup_errors=ignore_lookup_errors)
 
-    results = {}
+    results: dict[str, float] = {}
     retry_count = 0
     while retry_count <= retry:
         # Send a batch of pings

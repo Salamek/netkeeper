@@ -1,28 +1,21 @@
 stages:
-#  - test
+  - test
   - package
   - deploy
 
-#test:debian:
-#  stage: test
-#  script:
-#    - apt-get update -qy
-#    - apt-get install -y python3-dev python3-pip tox
-#    - python -m venv venv
-#    - ./venv/bin/pip install .
-#    - ./venv/bin/tox -e py39
-#  tags:
-#    - debian
-
-#test:archlinux:
-#  stage: test
-#  script:
-#    - pacman -Sy python-pip gcc python-tox --noconfirm
-#    - python -m venv venv
-#    - ./venv/bin/pip install .
-#    - tox -e lint,py310
-#  tags:
-#    - archlinux
+test:
+  stage: test
+  before_script:
+    - apt-get update -qy
+    - apt-get install -y python3-venv
+  script:
+    - python3 -m venv .venv
+    - . .venv/bin/activate
+    - pip install '.[dev,test]'
+    - ./code-check.sh
+    - python -m build
+  tags:
+    - debian
 
 package:debian:
   stage: package
@@ -32,7 +25,7 @@ package:debian:
     - wget -O- https://repository.salamek.cz/deb/salamek.gpg | tee /usr/share/keyrings/salamek-archive-keyring.gpg
     - echo "deb     [signed-by=/usr/share/keyrings/salamek-archive-keyring.gpg] https://repository.salamek.cz/deb/pub all main" | tee /etc/apt/sources.list.d/salamek.cz.list
     - apt-get update -qy
-    - apt-get install -y python3-dev dh-python python3-huawei-lte-api python3-pip python3-stdeb git python3-docopt python3-yaml
+    - apt-get install -y python3-dev dh-python python3-huawei-lte-api python3-pip python3-stdeb python3-setuptools git python3-typer python3-yaml
     - rm -rf "./deb_dist"
     - export DEB_BUILD_OPTIONS=nocheck # Disable tests when building debian package
     - python3 setup.py --command-packages=stdeb.command bdist_deb
@@ -50,7 +43,7 @@ package:archlinux:
     - echo "[salamek]" >> /etc/pacman.conf
     - echo "Server = https://repository.salamek.cz/arch/pub/any" >> /etc/pacman.conf
     - echo "SigLevel = Optional" >> /etc/pacman.conf
-    - pacman -Sy git binutils sudo python-huawei-lte-api python-yaml python-setuptools python-docopt fakeroot base-devel --noconfirm
+    - pacman -Sy git binutils sudo python-huawei-lte-api python-yaml python-setuptools python-typer fakeroot base-devel --noconfirm
     - useradd -m -G users -s /bin/bash package
     - chown -R package:users archlinux
     - cd archlinux
